@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Predict whether it will rain tomorrow using machine learning. Enter weather data and get an instant forecast." />
+  <title>Weather Predictor — Rain Forecast</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <nav class="navbar">
+    <a href="/" class="active">🌦️ Predictor</a>
+    <a href="/stats">📊 Stats</a>
+  </nav>
+
+  <div class="container">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-icon">🌦️</div>
+      <h1>Weather Predictor</h1>
+      <p>Enter today's weather data to predict tomorrow's rain</p>
+    </header>
+
+    <!-- Input Form Card -->
+    <div class="card">
+      <div class="card-title"><span>📋</span> Weather Parameters</div>
+      <form id="predict-form">
+        <div class="form-grid">
+
+          <div class="form-group">
+            <label for="MinTemp">Min Temp (°C)</label>
+            <input type="number" id="MinTemp" name="MinTemp" step="0.1" placeholder="e.g. 8.0" required />
+          </div>
+
+          <div class="form-group">
+            <label for="MaxTemp">Max Temp (°C)</label>
+            <input type="number" id="MaxTemp" name="MaxTemp" step="0.1" placeholder="e.g. 24.3" required />
+          </div>
+
+          <div class="form-group">
+            <label for="Rainfall">Rainfall (mm)</label>
+            <input type="number" id="Rainfall" name="Rainfall" step="0.1" min="0" placeholder="e.g. 0.6" required />
+          </div>
+
+          <div class="form-group">
+            <label for="WindGustSpeed">Wind Gust Speed (km/h)</label>
+            <input type="number" id="WindGustSpeed" name="WindGustSpeed" step="0.1" min="0" placeholder="e.g. 44" required />
+          </div>
+
+          <div class="form-group">
+            <label for="Humidity9am">Humidity 9 AM (%)</label>
+            <input type="number" id="Humidity9am" name="Humidity9am" step="1" min="0" max="100" placeholder="e.g. 71" required />
+          </div>
+
+          <div class="form-group">
+            <label for="Humidity3pm">Humidity 3 PM (%)</label>
+            <input type="number" id="Humidity3pm" name="Humidity3pm" step="1" min="0" max="100" placeholder="e.g. 22" required />
+          </div>
+
+          <div class="form-group">
+            <label for="Pressure9am">Pressure 9 AM (hPa)</label>
+            <input type="number" id="Pressure9am" name="Pressure9am" step="0.1" placeholder="e.g. 1007.7" required />
+          </div>
+
+          <div class="form-group">
+            <label for="Pressure3pm">Pressure 3 PM (hPa)</label>
+            <input type="number" id="Pressure3pm" name="Pressure3pm" step="0.1" placeholder="e.g. 1007.1" required />
+          </div>
+
+          <div class="form-group">
+            <label for="Temp9am">Temp 9 AM (°C)</label>
+            <input type="number" id="Temp9am" name="Temp9am" step="0.1" placeholder="e.g. 16.9" required />
+          </div>
+
+          <div class="form-group">
+            <label for="Temp3pm">Temp 3 PM (°C)</label>
+            <input type="number" id="Temp3pm" name="Temp3pm" step="0.1" placeholder="e.g. 21.8" required />
+          </div>
+
+        </div>
+
+        <button type="submit" class="btn-predict" id="predict-btn">
+          🔍 Predict Tomorrow's Weather
+        </button>
+      </form>
+
+      <!-- Loading Spinner -->
+      <div class="spinner-overlay" id="spinner">
+        <div class="spinner"></div>
+        <span class="spinner-text">Analyzing weather data…</span>
+      </div>
+
+      <div class="error-message" id="error-msg"></div>
+    </div>
+
+    <!-- Result Card -->
+    <div class="card result-card" id="result-card">
+      <div class="result-icon" id="result-icon"></div>
+      <div class="result-label" id="result-label"></div>
+      <div class="result-confidence" id="result-confidence"></div>
+      <div class="confidence-bar-wrapper">
+        <div class="confidence-bar" id="confidence-bar"></div>
+      </div>
+    </div>
+
+    <div class="footer">
+      Powered by Machine Learning · Rain in Australia Dataset
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('predict-form');
+    const btn  = document.getElementById('predict-btn');
+    const spinner    = document.getElementById('spinner');
+    const resultCard = document.getElementById('result-card');
+    const errorMsg   = document.getElementById('error-msg');
+
+    const FIELDS = [
+      'MinTemp', 'MaxTemp', 'Rainfall',
+      'Humidity9am', 'Humidity3pm',
+      'Pressure9am', 'Pressure3pm',
+      'Temp9am', 'Temp3pm',
+      'WindGustSpeed'
+    ];
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      // Hide previous results & errors
+      resultCard.classList.remove('visible');
+      errorMsg.classList.remove('visible');
+
+      // Validate & collect form data
+      const payload = {};
+      for (const key of FIELDS) {
+        const val = document.getElementById(key).value;
+        if (val === '' || val === null) {
+          errorMsg.textContent = `⚠️ Please fill in the ${key} field.`;
+          errorMsg.classList.add('visible');
+          return;
+        }
+        const num = parseFloat(val);
+        if (isNaN(num)) {
+          errorMsg.textContent = `⚠️ "${key}" must be a valid number.`;
+          errorMsg.classList.add('visible');
+          return;
+        }
+        payload[key] = num;
+      }
+
+      // Show spinner, disable button
+      btn.disabled = true;
+      btn.style.display = 'none';
+      spinner.classList.add('visible');
+
+      try {
+        const res = await fetch('/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Something went wrong');
+        }
+
+        // Display result
+        const isRain = data.prediction === 'Rain';
+
+        document.getElementById('result-icon').textContent = isRain ? '🌧️' : '☀️';
+
+        const label = document.getElementById('result-label');
+        label.textContent = isRain ? 'Rain Tomorrow' : 'No Rain Tomorrow';
+        label.className = 'result-label ' + (isRain ? 'rain' : 'no-rain');
+
+        document.getElementById('result-confidence').textContent =
+          `Confidence: ${data.confidence}%`;
+
+        const bar = document.getElementById('confidence-bar');
+        bar.style.width = '0%';
+        bar.className = 'confidence-bar ' + (isRain ? 'rain' : 'no-rain');
+
+        resultCard.classList.add('visible');
+
+        // Animate confidence bar
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            bar.style.width = data.confidence + '%';
+          });
+        });
+
+      } catch (err) {
+        errorMsg.textContent = '⚠️ ' + err.message;
+        errorMsg.classList.add('visible');
+      } finally {
+        btn.disabled = false;
+        btn.style.display = 'block';
+        spinner.classList.remove('visible');
+      }
+    });
+  </script>
+</body>
+</html>
